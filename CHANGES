@@ -1,0 +1,74 @@
+K2.8
+  - Instructions for building a custom filesystem image have been moved from
+    the netkit-kernel (7) man page to the README file.
+  - Enabled kernel automounter (autofs) and filesystem in user space (fuse)
+    support.
+
+K2.7
+  - Fixed a bug in the function that computes a predictable MAC address for
+    virtual network interfaces. Collisions in the function being used
+    frequently caused duplicate MAC addresses. Now a SHA1 hash is used instead.
+
+K2.6
+  - Upgrade to kernel 2.6.26.5.
+  - Upgraded to the MPLS kernel framework version 1.962.
+  - Kernel patches have been cleaned up and are now more self-documented. Also,
+    patches to MPLS-enable the Netkit kernel are shipped in the kernel package.
+  - Enabled support for VDE transport, i.e. the ability to connect virtual
+    machines to the improved fork of the uml_switch offered by the Virtual
+    Distributed Ethernet project.
+  - Enabled support for pcap transport, i.e. the possibility to attach a
+    read-only virtual network device to a filtered stream of packets collected
+    from host interfaces.
+  - Support to other miscellaneous protocols (e.g., L2TP, Bluetooth) is now
+    enabled. Support to other protocols has been dropped in favour of more
+    recent alternatives (e.g., CIFS instead of SMB).
+  - Enabled support for multiple IPv6 routing tables.
+  - The kernel package now includes a makefile to ease the creation of custom
+    kernels.
+  - Instructions to build a custom kernel for use with Netkit have been moved
+    from the netkit-kernel man page to the README.
+  - Network interfaces are now assigned a pseudo-random MAC address, which is
+    computed based on the virtual machine name and the interface ID.
+
+K2.5
+  - Introduced support to MPLS.
+  - IPv6 is now compiled as a module.
+
+K2.4
+  - Renamed the base directory of the kernel tree from netkit2 to netkit.
+
+K2.3
+  - Improved performance thanks to the support for SKAS0 mode introduced since
+    2.6.13.
+  - Introduced support for link features including delay, loss, duplication,
+    reordering, etc. Emulation of these features is provided by the NETEM packet
+    scheduler.
+  - Introduced support for auditing and for the SELinux infrastructure.
+    
+K2.2
+  - Simplified (and fixed) deploying of Netkit kernel modules. The
+    simplification consists in the fact that explicitly dealing with symbolic
+    links is not needed any more: just run `make modules_install' with a
+    seasonable INSTALL_MOD_PATH and that's it. Try `man netkit-kernel' for more
+    information. The fix consists in the fact that, before this release, it was
+    not possible to use modules for a kernel whose version did not match the one
+    expected by the Netkit filesystem.
+
+K2.1 Beta
+  - Fixed a bug which limited the maximum number of arguments on the UML kernel
+    command line (as a consequence, virtual machines could not be configured
+    with more than about 6 interfaces, depending on the other options passed
+    to vstart).
+  - The port-helper patch supplied with the Netkit kernel was erroneously
+    reversed. Fixed.
+
+K2.0 Beta
+  - A new 2.6.11.7 kernel has been recompiled from scratch. The kernel
+    configuration has been completely revised. Minimal patches have been applied
+    to provide for better stability.
+  - Support for module loading has been introduced, so that the kernel
+    configuration now includes basic commonly used functionalities as built-in
+    pieces, while most of the other features are available as modules.
+  - The kernel should now work flawlessly also with SKAS-patched host kernels.
+

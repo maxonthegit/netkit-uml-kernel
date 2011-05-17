@@ -1,0 +1,26 @@
+===============================================================================
+
+This patch solves a problem that arises during a static compile of the UML
+kernel, due to a symbol clash between the libc and the kernel.
+
+The patch has been obtained from:
+http://groups.google.com/group/linux.debian.bugs.dist/msg/70eeb93b53f1c7ee
+
+TECHNICAL INFORMATION:
+
+Applies to vanilla kernel 2.6.26.5.
+
+===============================================================================
+
+diff -Naur linux-2.6.26.5/arch/um/Makefile linux-2.6.26.5-changed/arch/um/Makefile
+--- linux-2.6.26.5/arch/um/Makefile	2008-09-08 19:40:20.000000000 +0200
++++ linux-2.6.26.5-changed/arch/um/Makefile	2008-10-20 11:37:52.000000000 +0200
+@@ -75,7 +75,7 @@
+ # defines more robust
+ 
+ KERNEL_DEFINES = $(strip -Derrno=kernel_errno -Dsigprocmask=kernel_sigprocmask \
+-			 -Dmktime=kernel_mktime $(ARCH_KERNEL_DEFINES))
++			 -Dmktime=kernel_mktime -Dstrrchr=kernel_strrchr $(ARCH_KERNEL_DEFINES))
+ KBUILD_CFLAGS += $(KERNEL_DEFINES)
+ 
+ PHONY += linux

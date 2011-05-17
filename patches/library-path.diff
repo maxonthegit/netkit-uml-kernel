@@ -1,0 +1,29 @@
+===============================================================================
+
+This patch fixes a potential problem that arises during cross-architecture
+compiles. Pcap and vdeplug are forcedly linked against files found in system
+directories, which may not match the target architecture. The patch relaxes
+this constraint and allows ld to additionally look inside user supplied
+directories.
+
+TECHNICAL INFORMATION:
+
+Applies to vanilla kernel 2.6.26.5.
+
+===============================================================================
+
+diff -Naur linux-2.6.26.3/arch/um/drivers/Makefile linux-2.6.26.3-changed/arch/um/drivers/Makefile
+--- linux-2.6.26.3/arch/um/drivers/Makefile	2008-08-20 20:11:37.000000000 +0200
++++ linux-2.6.26.3-changed/arch/um/drivers/Makefile	2008-10-16 15:10:34.000000000 +0200
+@@ -17,9 +17,9 @@
+ port-objs := port_kern.o port_user.o
+ harddog-objs := harddog_kern.o harddog_user.o
+ 
+-LDFLAGS_pcap.o := -r $(shell $(CC) $(KBUILD_CFLAGS) -print-file-name=libpcap.a)
++LDFLAGS_pcap.o := -r -L$(shell dirname `$(CC) $(KBUILD_CFLAGS) -print-file-name=libpcap.a`) -lpcap
+ 
+-LDFLAGS_vde.o := -r $(shell $(CC) $(CFLAGS) -print-file-name=libvdeplug.a)
++LDFLAGS_vde.o := -r -L$(shell dirname `$(CC) $(CFLAGS) -print-file-name=libvdeplug.a`) -lvdeplug
+ 
+ targets := pcap_kern.o pcap_user.o vde_kern.o vde_user.o
+ 

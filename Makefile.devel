@@ -1,0 +1,153 @@
+#     Copyright 2007-2008 Massimo Rimondini - Computer Networks Research Group,
+#     Roma Tre University.
+#
+#     This file is part of Netkit.
+#
+#     Netkit is free software: you can redistribute it and/or modify it under
+#     the terms of the GNU General Public License as published by the Free
+#     Software Foundation, either version 3 of the License, or (at your option)
+#     any later version.
+#
+#     Netkit is distributed in the hope that it will be useful, but WITHOUT ANY
+#     WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+#     FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+#     details.
+#
+#     You should have received a copy of the GNU General Public License along
+#     with Netkit.  If not, see <http://www.gnu.org/licenses/>.
+
+
+# The following variables should contain relative paths
+BUILD_DIR=build
+MODULES_DIR=modules
+PATCHES_DIR=patches
+INCLUDES_DIR=include
+
+# Target architecture of the UML kernel binary file. Valid values include:
+# i386, ia64, ppc, and x86_64
+SUBARCH?=i386
+
+# Additional variables for correctly compiling the kernel
+export CFLAGS+=-I$(CURDIR)/$(INCLUDES_DIR)/usr/include
+export LDFLAGS+=-L$(CURDIR)/$(INCLUDES_DIR)/usr/lib
+
+# Kernel release
+KERNEL_RELEASE?=2.6.26.5
+
+# URL of the kernel tarball, if required
+KERNEL_URL=http://www.kernel.org/pub/linux/kernel/v2.6/linux-$(KERNEL_RELEASE).tar.bz2
+
+# Debian archive mirror, used to get architecture-specific development files
+DEBIAN_MIRROR?=http://ftp.it.debian.org/debian/
+
+# Names of additional, architecture-specific packages to be downloaded
+ifeq ($(SUBARCH),ppc)
+DEBIAN_DEV_PACKAGES=pool/main/libp/libpcap/libpcap0.8-dev_0.9.8-5_powerpc.deb pool/main/v/vde2/libvdeplug2-dev_2.2.2-3_powerpc.deb
+else ifeq ($(SUBARCH),x86_64)
+DEBIAN_DEV_PACKAGES=pool/main/libp/libpcap/libpcap0.8-dev_0.9.8-5_amd64.deb pool/main/v/vde2/libvdeplug2-dev_2.2.2-3_amd64.deb
+else
+DEBIAN_DEV_PACKAGES=pool/main/libp/libpcap/libpcap0.8-dev_0.9.8-5_$(SUBARCH).deb pool/main/v/vde2/libvdeplug2-dev_2.2.2-3_$(SUBARCH).deb
+endif
+
+
+
+
+
+
+
+
+##############################################################################
+## Settings below these lines should in general never be touched.
+##############################################################################
+
+# The CDPATH environment variable can cause problems 
+override CDPATH=
+NK_KERNEL_RELEASE=$(shell awk '/kernel version/ {print $$NF}' netkit-kernel-version)
+KERNEL_PACKAGE=linux-$(KERNEL_RELEASE).tar.bz2
+KERNEL_DIR=$(patsubst %.tar.bz2,%,$(KERNEL_PACKAGE))
+
+default: help
+
+.PHONY: help
+help:
+	@echo
+	@echo -e "\e[1mAvailable targets are:\e[0m"
+	@echo
+	@echo -e "  \e[1mkernel\e[0m     Build a Netkit kernel. The current directory must contain"
+	@echo "             the source .tar.bz2 package for vanilla kernel $(KERNEL_RELEASE)."
+	@echo "             If no such package is available, the makefile will attempt"
+	@echo "             to automatically download one. Other files required for the"
+	@echo "             build will be automatically downloaded too."
+	@echo
+	@echo -e "  \e[1mpackage\e[0m    Create a distributable tarball of the Netkit kernel."
+	@echo
+	@echo -e "  \e[1mclean\e[0m      Remove files from previous builds."
+	@echo
+	@echo -e "\e[1mAvailable variables are:\e[0m"
+	@echo
+	@echo -e "   \e[1mSUBARCH\e[0m   Specifies the target architecture on which the kernel is"
+	@echo "             supposed to run. Possible values are: i386, ia64, ppc, and"
+	@echo "             x86_64 (default: $(SUBARCH))."
+	@echo
+	@echo -e "   \e[1mKERNEL_RELEASE\e[0m Specifies the version of the kernel to be compiled"
+	@echo "             (default: $(KERNEL_RELEASE))."
+	@echo
+
+.PHONY: kernel
+kernel: netkit-kernel
+
+.SILENT: netkit-kernel
+netkit-kernel: $(BUILD_DIR)/.patched $(BUILD_DIR)/$(KERNEL_DIR)/.config $(INCLUDES_DIR)/usr
+	echo -e "\n\e[1m\e[32m========= Compiling the kernel... ========\e[0m"
+	+$(MAKE) -C $(BUILD_DIR)/$(KERNEL_DIR)/ all modules modules_install ARCH=um SUBARCH=$(SUBARCH) INSTALL_MOD_PATH="$(CURDIR)/$(MODULES_DIR)"
+	rm -f $(MODULES_DIR)/lib/modules/*/{source,build}
+	cp $(BUILD_DIR)/$(KERNEL_DIR)/linux netkit-kernel-$(SUBARCH)-$(KERNEL_RELEASE)-$(NK_KERNEL_RELEASE)
+	ln -fs netkit-kernel-$(SUBARCH)-$(KERNEL_RELEASE)-$(NK_KERNEL_RELEASE) netkit-kernel
+
+.SILENT: $(INCLUDES_DIR)/usr
+$(INCLUDES_DIR)/usr: $(notdir $(DEBIAN_DEV_PACKAGES))
+	echo -e "\n\e[1m\e[32m==== Unpacking development packages... ===\e[0m"
+	for PACKAGE in $?; do \
+		dpkg-deb -x $${PACKAGE} $(INCLUDES_DIR); \
+	done
+	# Make sure the $(INCLUDES_DIR)/usr is newer than the prerequisites
+	touch $(INCLUDES_DIR)/usr
+
+.SILENT: %.deb
+%.deb:
+	wget $(DEBIAN_MIRROR)/$(filter %/$@,$(DEBIAN_DEV_PACKAGES))
+
+.SILENT: $(BUILD_DIR)/.patched
+$(BUILD_DIR)/.patched: $(BUILD_DIR)/.unpacked
+	echo -e "\n\e[1m\e[32m==========  Applying patches... ==========\e[0m"
+	cd $(CURDIR)/$(BUILD_DIR)/$(KERNEL_DIR) && find "$(CURDIR)/$(PATCHES_DIR)" -name "*.diff" -type f -print -exec /bin/sh -c "patch -p1 < "{}" >/dev/null" ';'
+	: > $(BUILD_DIR)/.patched
+
+.SILENT: $(BUILD_DIR)/$(KERNEL_DIR)/.config
+$(BUILD_DIR)/$(KERNEL_DIR)/.config: netkit-kernel-config-$(SUBARCH) $(BUILD_DIR)/.patched
+	echo -e "\n\e[1m\e[32m======= Configuring the kernel... ========\e[0m"
+	ln -fs netkit-kernel-config-$(SUBARCH) netkit-kernel-config-$(SUBARCH)-$(KERNEL_RELEASE)-$(NK_KERNEL_RELEASE)
+	sed 's/CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION="-netkit-$(NK_KERNEL_RELEASE)"/' netkit-kernel-config-$(SUBARCH) > $(BUILD_DIR)/$(KERNEL_DIR)/.config
+	+$(MAKE) -C $(BUILD_DIR)/$(KERNEL_DIR)/ silentoldconfig ARCH=um SUBARCH=$(SUBARCH)
+
+.SILENT: $(BUILD_DIR)/.unpacked
+$(BUILD_DIR)/.unpacked: $(KERNEL_PACKAGE)
+	echo -e "\n\e[1m\e[32m======== Unpacking the kernel... =========\e[0m"
+	mkdir -p $(BUILD_DIR)
+	tar -C $(BUILD_DIR) -xjf $(KERNEL_PACKAGE)
+	: > $(BUILD_DIR)/.unpacked
+
+$(KERNEL_PACKAGE):
+	echo -e "\n\e[1m\e[33m====== Retrieving kernel tarball... ======\e[0m"
+	wget $(KERNEL_URL)
+
+.PHONY: package
+package: ../netkit-kernel-$(NK_KERNEL_RELEASE).tar.bz2
+
+../netkit-kernel-$(NK_KERNEL_RELEASE).tar.bz2: netkit-kernel
+	tar --exclude=".*" --exclude="CVS" --exclude=".svn" --exclude="$(BUILD_DIR)" --exclude="$(INCLUDES_DIR)" --exclude="*.tar.bz2" --exclude="*.tar.gz" --exclude="*.deb" -C ../.. -cjf ../netkit-kernel-$(SUBARCH)-$(NK_KERNEL_RELEASE).tar.bz2 netkit/kernel
+
+.PHONY: clean
+clean:
+	-rm -fr $(BUILD_DIR) netkit-kernel netkit-kernel-*-K*.* netkit-kernel-config-*-K*.* $(INCLUDES_DIR)/* $(MODULES_DIR) *.deb
+

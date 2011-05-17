@@ -1,0 +1,169 @@
+==============================================================================
+                              NETKIT USER MODE KERNEL
+                                   Version K2.8
+==============================================================================
+
+This package provides a User Mode Linux (UML) kernel for use with Netkit
+virtual machines.
+
+
+=== ABOUT THIS KERNEL ===
+
+A User Mode kernel is a particular piece of software that emulates the kernel
+of a real host, and yet runs as a standard user space process, namely as a
+standard application like `xterm'. Emulated features include virtual disks,
+network interfaces, memory management, scheduling algorithms, and (almost)
+whatever the kernel of a host machine would provide.
+
+This kernel has been configured to enable support for loadable kernel modules,
+namely drivers and other components that can be attached or removed on the fly
+from a running kernel. Using modules reduces the overall kernel size, because
+most features are compiled as separate modules, and minimizes memory
+consumption and startup time, because unnecessary drivers and features are not
+enabled until explicitly required.
+Compiled modules are provided inside the directory
+`modules/lib/modules/<kernel_version>', where <kernel_version> is the version
+of the kernel provided with this package.
+
+Every virtual machine can be started with its own UML kernel. In principle,
+nothing forces to use particular combinations of kernels and filesystems.
+Nevertheless, filesystems may contain tools that have been installed for use
+with a specific kernel version. It is therefore advised to always use the most
+recent released kernels and filesystems.
+
+
+=== COMPILING A CUSTOM UML KERNEL FOR USE WITH NETKIT ===
+
+This section describes how to compile an UML kernel from scratch so that it can
+be used with Netkit.
+
+In principle, the procedure to compile a kernel is independent on the
+underlying Linux distribution. However, some of these instructions are tailored
+for our development platform, which is a Debian system.
+
+
+1. PREREQUISITES
+
+First of all, you need to have a properly set up building environment.
+Typically, this involves installing at the very least the following packages:
+   gcc
+   binutils
+   make
+   libc6-dev
+   bison
+   flex
+
+You are likely going to compile a cross-architecture kernel. This is the case,
+for example, when you are building the kernel on a x86_64 (64 bit) platform and
+want it to be compatible with other i386 (32 bit) hosts. In this case, you
+would need other packages:
+   libc6-dev-i386
+   gcc-multilib
+
+Yet other packages will be needed to enable specific kernel features and
+modules, but these highly depend on which of them you choose to enable. The
+rule of thumb is to check for missing files in compilation errors and install
+development packages (their names typically end with `-dev') that provide those
+files. For a Debian system you can perform a search for packages that contain a
+given file by visiting the URL http://packages.debian.org/file:<path>, where
+<path> is the name of the file.
+
+Cross-compilation may require further actions. For example, some development
+packages contain files that are specific for a certain architecture (say
+x86_64), and your target architecture may be different (say i386). In this
+case, installing system-wide development files is not enough because the
+compiler will not find the files that are required for the target architecture.
+In principle, this could be solved by forcedly installing a package for an
+architecture that is different from your host's, but this is a bad idea as one
+day it may break the operation of other tools on your system. We therefore
+provide an `include' directory inside the kernel directory, where you can put
+all the offending packages without harming your system. The makefile we provide
+should take care of automatically get the required packages. However, if you
+still wanted to do it manually, you would proceed as follows:
+   cd $NETKIT_HOME/kernel/include
+   dpkg-deb -x <debian_package> $PWD
+where <debian_package> is the name of a package that has been manually
+downloaded in advance.  We are aware of at least the following packages causing
+this kind of problem:
+   libpcap-dev
+   libvdeplug2-dev
+Remember that some packages are only metapackages, meaning that they only exist
+to ensure dependence on other packages. As such, they do not contain any files
+and are not suited to obtain the required development libraries and files.
+
+
+2. COMPILATION (THE AUTOMATIC WAY)
+
+Starting from version K2.6, the kernel package comes with a makefile that helps
+automating the configuration and compilation process. Consider that the
+makefile has been conceived for use on a Debian system, and may therefore not
+operate properly on other distributions.
+
+If you are going to use the makefile, all you need to do is to enter the kernel
+directory and invoke make as follows:
+   cd $NETKIT_HOME/kernel
+   make -f Makefile.devel kernel
+
+The makefile automatically takes care of performing all the operations detailed
+in section COMPILATION (THE MANUAL WAY). You know that the kernel was
+successfully compiled when the makefile exits without errors and a kernel
+executable (typically `netkit-kernel' or similar) is created.
+
+The makefile may also provide other targets (for example, to automatically build
+a Netkit kernel package) and supports the specification of some options to tune
+the build process. If you want to know all of them, you can simply type:
+   cd $NETKIT_HOME/kernel
+   make -f Makefile.devel
+
+
+3. COMPILATION (THE MANUAL WAY)
+
+Compiling a kernel requires performing the following steps.
+
+First of all, you need to get a vanilla kernel source tarball. Such files are
+available at http://www.kernel.org/pub/linux/kernel/v2.6/. Get a kernel version
+that matches the one provided in the Netkit kernel package, or you may
+experience compilation faults due to incompatible configurations. Place the
+kernel package inside `$NETKIT_HOME/kernel' and unpack it by using the
+following command:
+   tar xjf linux-<kernel_version>.tar.bz2
+or, if you got a .tar.gz package:
+   tar xzf linux-<kernel_version>.tar.gz
+
+Now you need to apply Netkit-specific patches, which can be found in
+`$NETKIT_HOME/kernel/patches'. A shortcut to apply all of them at once follows:
+   cd $NETKIT_HOME/kernel/linux-<kernel_version>
+   for CURRENT_PATCH in $NETKIT_HOME/kernel/patches/*.diff; do \
+      patch -p1 < $CURRENT_PATCH; done
+If you downloaded the correct kernel version, no unrecoverable failures should
+be reported by this command.
+
+At this point you are ready to configure the kernel. We strongly suggest to use
+the configuration settings provided with Netkit as a starting point. In order
+to do so, you need to copy the configuration file that applies for your target
+architecture. For example, if you want to compile a kernel for i386 (32 bit)
+hosts, you would use the command:
+   cp $NETKIT_HOME/kernel/netkit-kernel-config-i386 \
+      $NETKIT_HOME/kernel/linux-<kernel_version>/.config
+Then, you need to instruct the kernel build files to fetch this configuration:
+   cd $NETKIT_HOME/kernel/linux-<kernel_version>
+   make silentoldconfig ARCH=um SUBARCH=<target_architecture>
+If you downloaded the correct kernel version, this command should complete
+automatically and ask no questions. Otherwise, the user is prompted for any
+configuration settings that mismatch against those provided with the Netkit
+kernel package.
+If you needed to alter settings (for example to enable other drivers or
+features), you would run the following command:
+   make menuconfig ARCH=um SUBARCH=<target_architecture>
+and save the configuration on exit.
+
+At this point you are ready to start the compilation. In order to do so,
+proceed as follows:
+   cd $NETKIT_HOME/kernel/linux-<kernel_version>
+   make all modules modules_install ARCH=um SUBARCH=<target_architecture> \
+      INSTALL_MOD_PATH=$NETKIT_HOME/kernel/modules \
+      CFLAGS+=-I$NETKIT_HOME/kernel/include/usr/include \
+      LDFLAGS+=-L$NETKIT_HOME/kernel/include/usr/lib
+If the procedure completes successfully, your UML kernel should be available in
+the form of an executable file named `linux' inside the kernel sources
+directory.
